@@ -1,0 +1,28 @@
+{
+  "format": "layers-model",
+  "generatedBy": "keras",
+  "weightsManifest": [
+    {
+      "paths": ["group1-shard1of1.bin"],
+      "weights": [
+        { "name": "dense/kernel", "shape": [2, 1] },
+        { "name": "dense/bias", "shape": [1] }
+      ]
+    }
+  ],
+  "modelTopology": {
+    "class_name": "Sequential",
+    "config": {
+      "layers": [
+        {
+          "class_name": "Dense",
+          "config": {
+            "units": 1,
+            "activation": "sigmoid",
+            "input_shape": [2]
+          }
+        }
+      ]
+    }
+  }
+}

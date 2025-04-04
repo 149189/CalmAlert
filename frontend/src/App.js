@@ -48,88 +48,16 @@ function App() {
   const mediaStream = useRef(null);
   const canvasRef = useRef(null);
 
-  // WebSocket connection
-  useEffect(() => {
-    if (isMonitoring) {
-      connectWebSocket();
-      return () => {
-        if (ws.current) {
-          ws.current.close();
-        }
-        cleanupAudio();
-      };
-    }
-  }, [isMonitoring, connectWebSocket]);
-
-  const connectWebSocket = useCallback(() => {
-    setConnectionStatus("connecting");
-    ws.current = new WebSocket("ws://localhost:8000/ws/monitoring/");
-
-    ws.current.onopen = () => {
-      setConnectionStatus("connected");
-      startAudioCapture();
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleIncomingAlert(data);
-      } catch (error) {
-        console.error("Error parsing incoming message:", error);
-      }
-    };
-
-    ws.current.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      setConnectionStatus("disconnected");
-    };
+  // Helper: Add alert
+  const addAlert = useCallback((type, message) => {
+    const newAlert = { type, message, timestamp: Date.now() };
+    setAlerts((prev) => {
+      // Keep only the most recent 5 alerts.
+      return [...prev, newAlert].slice(-5);
+    });
   }, []);
 
-  // Cleanup audio resources
-  const cleanupAudio = () => {
-    if (mediaStream.current) {
-      mediaStream.current.getTracks().forEach((track) => track.stop());
-      mediaStream.current = null;
-    }
-    if (audioContext.current) {
-      audioContext.current.close();
-      audioContext.current = null;
-    }
-  };
-
-  // Audio processing
-  const startAudioCapture = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStream.current = stream;
-      audioContext.current = new AudioContext({ sampleRate: 16000 });
-      const source = audioContext.current.createMediaStreamSource(stream);
-
-      // Using a ScriptProcessor is deprecated; however, for simplicity we retain it here.
-      const processor = audioContext.current.createScriptProcessor(4096, 1, 1);
-      source.connect(processor);
-      processor.connect(audioContext.current.destination);
-
-      processor.onaudioprocess = (e) => {
-        const audioData = e.inputBuffer.getChannelData(0);
-        visualizeWaveform(audioData);
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          // Convert normalized float32 [-1, 1] to int16 and send as binary data.
-          const int16Data = Int16Array.from(
-            audioData.map((n) => Math.max(-1, Math.min(1, n)) * 32767)
-          );
-          ws.current.send(int16Data.buffer);
-        }
-      };
-
-      setSystemStatus((prev) => ({ ...prev, audioInput: true }));
-    } catch (error) {
-      console.error("Audio capture error:", error);
-      addAlert("error", "Microphone access denied");
-    }
-  }, []);
-
-  // Visualization
+  // Visualization function
   const visualizeWaveform = useCallback((data) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -154,26 +82,102 @@ function App() {
     ctx.stroke();
   }, []);
 
-  // Alert handling
-  const handleIncomingAlert = useCallback((data) => {
-    if (data.type === "panic") {
-      addAlert(
-        "panic",
-        `Panic detected! Confidence: ${(data.confidence * 100).toFixed(1)}%`
-      );
-    } else if (data.type === "wakeword") {
-      addAlert("wakeword", "Wakeword detected!");
-    }
-  }, []);
+  // Audio processing function; defined before connectWebSocket
+  const startAudioCapture = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStream.current = stream;
+      audioContext.current = new AudioContext({ sampleRate: 16000 });
+      const source = audioContext.current.createMediaStreamSource(stream);
 
-  const addAlert = useCallback((type, message) => {
-    const newAlert = { type, message, timestamp: Date.now() };
-    setAlerts((prev) => {
-      // Keep only the most recent 5 alerts.
-      const newAlerts = [...prev, newAlert].slice(-5);
-      return newAlerts;
-    });
-  }, []);
+      // Create a ScriptProcessor (deprecated but kept for simplicity)
+      const processor = audioContext.current.createScriptProcessor(4096, 1, 1);
+      source.connect(processor);
+      processor.connect(audioContext.current.destination);
+
+      processor.onaudioprocess = (e) => {
+        const audioData = e.inputBuffer.getChannelData(0);
+        visualizeWaveform(audioData);
+        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+          // Convert float32 [-1, 1] to int16 and send as binary data.
+          const int16Data = Int16Array.from(
+            audioData.map((n) => Math.max(-1, Math.min(1, n)) * 32767)
+          );
+          ws.current.send(int16Data.buffer);
+        }
+      };
+
+      setSystemStatus((prev) => ({ ...prev, audioInput: true }));
+    } catch (error) {
+      console.error("Audio capture error:", error);
+      addAlert("error", "Microphone access denied");
+    }
+  }, [visualizeWaveform, addAlert]);
+
+  // Alert handling function; defined before connectWebSocket
+  const handleIncomingAlert = useCallback(
+    (data) => {
+      if (data.type === "panic") {
+        addAlert(
+          "panic",
+          `Panic detected! Confidence: ${(data.confidence * 100).toFixed(1)}%`
+        );
+      } else if (data.type === "wakeword") {
+        addAlert("wakeword", "Wakeword detected!");
+      }
+    },
+    [addAlert]
+  );
+
+  // Define connectWebSocket after startAudioCapture and handleIncomingAlert
+  const connectWebSocket = useCallback(() => {
+    setConnectionStatus("connecting");
+    ws.current = new WebSocket("ws://localhost:8000/ws/monitoring/");
+
+    ws.current.onopen = () => {
+      setConnectionStatus("connected");
+      startAudioCapture();
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleIncomingAlert(data);
+      } catch (error) {
+        console.error("Error parsing incoming message:", error);
+      }
+    };
+
+    ws.current.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      setConnectionStatus("disconnected");
+    };
+  }, [startAudioCapture, handleIncomingAlert]);
+
+  // Cleanup audio resources
+  const cleanupAudio = () => {
+    if (mediaStream.current) {
+      mediaStream.current.getTracks().forEach((track) => track.stop());
+      mediaStream.current = null;
+    }
+    if (audioContext.current) {
+      audioContext.current.close();
+      audioContext.current = null;
+    }
+  };
+
+  // WebSocket connection useEffect
+  useEffect(() => {
+    if (isMonitoring) {
+      connectWebSocket();
+      return () => {
+        if (ws.current) {
+          ws.current.close();
+        }
+        cleanupAudio();
+      };
+    }
+  }, [isMonitoring, connectWebSocket]);
 
   // Auto-dismiss alerts after 5 seconds
   useEffect(() => {

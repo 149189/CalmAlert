@@ -6,6 +6,7 @@ from .views import (
     EmergencyContactsView,
     StreamingEndpoint
 )
+from .consumers import MonitoringConsumer, EmergencyConsumer
 
 urlpatterns = [
     # Audio Processing
@@ -14,7 +15,8 @@ urlpatterns = [
     
     # System Management
     path('status/', ModelStatusView.as_view(), name='model-status'),
-    path('emergency-contacts/', EmergencyContactsView.as_view(), name='emergency-contacts'),
+    path('emergency-contacts/', EmergencyContactsView, name='emergency-contacts'),
+
     
     # WebSocket endpoints
     path('ws/monitoring/', MonitoringConsumer.as_asgi(), name='monitoring-ws'),

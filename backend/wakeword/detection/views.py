@@ -1,9 +1,10 @@
-# views.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view
 import base64
 import json
+from django.conf import settings
 from .utils import wakeword_onnx, panic_detection
 
 class AudioUploadView(APIView):
@@ -43,7 +44,33 @@ class StreamingEndpoint(APIView):
                 'wakeword': wake_detected,
                 'panic': panic_result['panic'],
                 'timestamp': data.get('timestamp')
-            })
+            }, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ModelStatusView(APIView):
+    def get(self, request):
+        """
+        Returns a simple status response indicating the models are loaded.
+        Modify this logic to perform actual model health checks if necessary.
+        """
+        try:
+            status_info = {
+                'wakeword_model': 'loaded',
+                'panic_model': 'loaded'
+            }
+            return Response(status_info, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def EmergencyContactsView(request):
+    """
+    Returns a list of emergency contacts from the project settings.
+    """
+    try:
+        contacts = settings.EMERGENCY_CONFIG.get('CONTACTS', [])
+        return Response({'contacts': contacts}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

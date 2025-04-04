@@ -27,8 +27,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'channels',
     'detection', 
     'corsheaders',
+    
 ]
 
 # Middleware
@@ -43,6 +45,23 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # Ensure this directory exists
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
 # CORS Settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Adjust for your frontend
@@ -53,7 +72,8 @@ CORS_ALLOW_HEADERS = ['authorization', 'content-type', 'accept', 'origin', 'user
 
 # URLs & WSGI
 ROOT_URLCONF = 'wakeword.urls'
-WSGI_APPLICATION = 'wakeword.wsgi.application'
+ASGI_APPLICATION = "wakeword.asgi.application"
+
 
 # Database
 DATABASES = {
